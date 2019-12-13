@@ -219,7 +219,7 @@ def main():
         # reset DALI iterators
         dataset.reset()
 
-def train(dataset, model, criterion, optimizer, epoch):
+def train(dataset, model, criterion, optimizer, epoch, warmup_batches=10, prof_batches=100):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -239,7 +239,10 @@ def train(dataset, model, criterion, optimizer, epoch):
         adjust_learning_rate(optimizer, epoch, i, len(train_loader))
 
         if args.prof:
-            if i > 10:
+            # Allow 10 warmup batches
+            if i == warmup_batches:
+                epoch_stt_time = time.time()
+            if i > (warmup_batches + prof_batches):
                 break
         # measure data loading time
         data_time.update(time.time() - end)
@@ -289,6 +292,9 @@ def train(dataset, model, criterion, optimizer, epoch):
                    args.total_batch_size / batch_time.avg,
                    batch_time=batch_time,
                    data_time=data_time, loss=losses, top1=top1, top5=top5))
+
+    if args.prof:
+        print('Training speed was %d images/s' % (args.batch_size * prof_batches / (time.time() - epoch_stt_time)))
 
     return batch_time.avg
 
