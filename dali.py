@@ -42,14 +42,14 @@ class HybridTrainPipe(Pipeline):
                  mean, std, local_rank=0, world_size=1, dali_cpu=False, shuffle=True, fp16=False,
                  min_crop_size=0.08):
 
-        # As we're recreating the Pipeline every epoch, seed must be -1 (random seed)
+        # As we're recreating the Pipeline at every epoch, the seed must be -1 (random seed)
         super(HybridTrainPipe, self).__init__(batch_size, num_threads, device_id, seed=-1)
 
-        # Tried enabling read_ahead here, but this just slowed down processing ~40%
+        # Enabling read_ahead slowed down processing ~40%
         self.input = ops.FileReader(file_root=data_dir, shard_id=local_rank, num_shards=world_size,
                                     random_shuffle=shuffle)
 
-        # let user decide which pipeline works him bets for RN version he runs
+        # Let user decide which pipeline works best with the chosen model
         if dali_cpu:
             decode_device = "cpu"
             self.dali_device = "cpu"
@@ -70,8 +70,8 @@ class HybridTrainPipe(Pipeline):
                                                mean=mean,
                                                std=std,)
 
-        # This padding sets the size of the internal nvJPEG buffers to be able to handle all images from full-sized ImageNet
-        # without additional reallocations
+        # To be able to handle all images from full-sized ImageNet, this padding sets the size of the internal
+        # nvJPEG buffers without additional reallocations
         device_memory_padding = 211025920 if decode_device == 'mixed' else 0
         host_memory_padding = 140544512 if decode_device == 'mixed' else 0
         self.decode = ops.ImageDecoderRandomCrop(device=decode_device, output_type=types.RGB,
@@ -81,7 +81,7 @@ class HybridTrainPipe(Pipeline):
                                                  random_area=[min_crop_size, 1.0],
                                                  num_attempts=100)
 
-        # Resize to desired size.  To match torchvision dataloader, use triangular interpolation
+        # Resize as desired.  To match torchvision data loader, use triangular interpolation.
         self.res = ops.Resize(device=self.dali_device, resize_x=crop, resize_y=crop,
                               interp_type=types.INTERP_TRIANGULAR)
 
@@ -95,7 +95,7 @@ class HybridTrainPipe(Pipeline):
         # Combined decode & random crop
         images = self.decode(self.jpegs)
 
-        # Resize to desired size
+        # Resize as desired
         images = self.res(images)
 
         if self.dali_device == "gpu":
@@ -136,10 +136,10 @@ class HybridValPipe(Pipeline):
     def __init__(self, batch_size, num_threads, device_id, data_dir, crop, size,
                  mean, std, local_rank=0, world_size=1, dali_cpu=False, shuffle=False, fp16=False):
 
-        # As we're recreating the Pipeline every epoch, seed must be -1 (random seed)
+        # As we're recreating the Pipeline at every epoch, the seed must be -1 (random seed)
         super(HybridValPipe, self).__init__(batch_size, num_threads, device_id, seed=-1)
 
-        # Tried enabling read_ahead here, but this just slowed down processing ~40%
+        # Enabling read_ahead slowed down processing ~40%
         # Note: initial_fill is for the shuffle buffer.  As we only want to see every example once, this is set to 1
         self.input = ops.FileReader(file_root=data_dir, shard_id=local_rank, num_shards=world_size, random_shuffle=shuffle, initial_fill=1)
         if dali_cpu:
@@ -233,7 +233,7 @@ def _preproc_worker(dali_iterator, cuda_stream, fp16, mean, std, output_queue, p
     """
 
     while not done_event.is_set():
-        # Wait until main thread signals to process next input - normally when it's taken the last processed input
+        # Wait until main thread signals to proc_next_input -- normally once it has taken the last processed input
         proc_next_input.wait()
         proc_next_input.clear()
 
@@ -248,7 +248,7 @@ def _preproc_worker(dali_iterator, cuda_stream, fp16, mean, std, output_queue, p
             input_orig = data[0]['data']
             target = data[0]['label'].squeeze().long()  # DALI should already output target on device
 
-            # Copy to GPU & apply final processing in seperate CUDA stream
+            # Copy to GPU and apply final processing in separate CUDA stream
             with torch.cuda.stream(cuda_stream):
                 input = input_orig
                 if pin_memory:
@@ -258,7 +258,7 @@ def _preproc_worker(dali_iterator, cuda_stream, fp16, mean, std, output_queue, p
 
                 input = input.permute(0, 3, 1, 2)
 
-                # Input tensor is transferred to GPU as 8 bit, to save bandwidth
+                # Input tensor is kept as 8-bit integer for transfer to GPU, to save bandwidth
                 if fp16:
                     input = input.half()
                 else:
