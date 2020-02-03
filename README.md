@@ -23,4 +23,4 @@ DALI GPU                                         | 3910
 DALI CPU                                         | 1816
 Torchvision w/ PIL-SIMD                          | 1058
 
-You can read the correspondig blog post <here>
+You can read the correspondig blog post [here](https://towardsdatascience.com/nvidia-dali-speeding-up-pytorch-876c80182440)
